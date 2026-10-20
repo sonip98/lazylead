@@ -27,7 +27,7 @@ const MESSAGE_SCHEMA = { type: 'object', properties: { message: { type: 'string'
 const TLDR_SCHEMA = { type: 'object', properties: { tldr: { type: 'string' } }, required: ['tldr'] };
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
-export const fmtHours = (h) => (h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
+export const fmtHours = (h) => (h < 2 / 60 ? 'just now' : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
 export async function summarizeThread(llm, t) {
   const input = {
@@ -74,7 +74,7 @@ export function factNumbers(f) {
 }
 
 export function fallbackTldr(n) {
-  const parts = [`${n.merged} merged`, `${n.opened} opened`, `${n.reviewsWaiting} reviews waiting (${n.staleReviews} stale)`];
+  const parts = [`${n.merged} merged`, `${n.opened} opened`, `${n.reviewsWaiting} ${n.reviewsWaiting === 1 ? 'review' : 'reviews'} waiting (${n.staleReviews} stale)`];
   if (n.stuckPrs) parts.push(`${n.stuckPrs} stuck without a reviewer`);
   if (n.readyToMerge) parts.push(`${n.readyToMerge} approved and ready to merge`);
   return `${parts.join(', ')}.`;
@@ -91,10 +91,28 @@ function urgentItems(f) {
 }
 
 // Every number in the model's TL;DR must be one we gave it.
-export function numbersCheck(text, n, extra = []) {
+// Digits inside @logins or words (sonip98, gemma4) are not numbers; #refs must be real PRs.
+export function numbersCheck(text, n, extra = [], prNumbers = []) {
   const allowed = new Set([...Object.values(n), ...extra].map(String));
-  const used = text.match(/\d+/g) || [];
-  return used.every((x) => allowed.has(x));
+  const refs = new Set(prNumbers.map(String));
+  const withoutLogins = text.replace(/@[\w-]+/g, '');
+  const usedRefs = [...withoutLogins.matchAll(/#(\d+)\b/g)].map((m) => m[1]);
+  const used = withoutLogins.replace(/#\d+\b/g, '').match(/\b\d+\b/g) || [];
+  return usedRefs.every((x) => refs.has(x)) && used.every((x) => allowed.has(x));
+}
+
+// The counts as plain words, so the model does not echo JSON keys back.
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
+function countsInWords(n) {
+  return [
+    `${plural(n.merged, 'PR', 'PRs')} merged`,
+    `${plural(n.opened, 'PR', 'PRs')} opened`,
+    `${plural(n.reviewsWaiting, 'review', 'reviews')} waiting, ${n.staleReviews} of them overdue`,
+    `${plural(n.stuckPrs, 'PR', 'PRs')} with no reviewer`,
+    `${plural(n.readyToMerge, 'PR', 'PRs')} approved but not merged`,
+    `${plural(n.mentions, 'unanswered mention', 'unanswered mentions')}`,
+  ].join('; ');
 }
 
 export async function writeTldr(llm, f, summaries) {
@@ -102,15 +120,18 @@ export async function writeTldr(llm, f, summaries) {
   const windowHours = Math.round((new Date(f.generatedAt) - new Date(f.windowStart)) / 3600_000);
   const out = await llm.json(
     SYSTEM,
-    `Facts for the last ${windowHours} hours:\n${JSON.stringify(n)}\n` +
+    `Counts for the last ${windowHours} hours: ${countsInWords(n)}.\n` +
       `Most urgent items, in order:\n${urgentItems(f).join('\n') || '- none'}\n` +
       `Thread summaries:\n${summaries.map((s) => `- "${s.title}": ${s.summary}`).join('\n') || '- none'}\n\n` +
-      'Write a TL;DR for the tech lead: at most 2 sentences. Start with the most urgent item by its title, then the counts. ' +
-      'Use digits only from the facts above; do not compute new numbers. Return JSON {"tldr": "..."}.',
+      'Write a TL;DR for the tech lead: at most 2 sentences. If there are urgent items, start with the most urgent one by its title; ' +
+      'if there are none, start with the most notable activity instead and do not mention urgency at all. Then the counts. ' +
+      'Use digits only from the counts above; do not compute new numbers. Leave out counts that are zero. Return JSON {"tldr": "..."}.',
     TLDR_SCHEMA,
   );
-  const ok = numbersCheck(out.tldr, n, [windowHours]);
-  return { text: ok ? out.tldr : fallbackTldr(n), checked: ok };
+  const prNumbers = [...f.shipped, ...f.opened, ...f.closedUnmerged, ...f.waiting, ...f.stuck, ...f.readyToMerge, ...f.changesRequested].map((p) => p.number);
+  const ok = numbersCheck(out.tldr, n, [windowHours], prNumbers);
+  // Keep what the model wrote when it is rejected, so you can see why.
+  return ok ? { text: out.tldr, checked: true } : { text: fallbackTldr(n), checked: false, rejected: out.tldr };
 }
 
 export const templateNudge = (w) =>
@@ -160,11 +181,12 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
       mentions: f.mentions.filter((m) => m.who === login && !asks.some((a) => a.repo === m.repo && a.number === m.number)),
       authoredChangesRequested: f.changesRequested.filter((p) => p.author === login),
       authoredReady: f.readyToMerge.filter((p) => p.author === login),
+      authoredStuck: f.stuck.filter((p) => p.author === login),
     };
   });
 
   const needYou = people.reduce(
-    (sum, p) => sum + p.reviews.length + p.asks.length + p.mentions.length + p.authoredChangesRequested.length + p.authoredReady.length,
+    (sum, p) => sum + p.reviews.length + p.asks.length + p.mentions.length + p.authoredChangesRequested.length + p.authoredReady.length + p.authoredStuck.length,
     0,
   );
   return {

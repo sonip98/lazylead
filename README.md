@@ -13,6 +13,21 @@ Every morning a tech lead opens GitHub and does the same rounds: what merged, wh
 
 It only reads GitHub. It never comments, merges or changes anything.
 
+## What a morning looks like
+
+From the first real run on this repo:
+
+```
+### @sonip98
+- Review lazylead#1 Per-person briefs — requested just now
+- Review lazylead#2 Facts-only brief when the model is down — requested just now
+
+### @piyushsoni-wq
+- Reply on lazylead#1 Per-person briefs: Should the per-person file list the author's own stuck PRs?
+```
+
+Nobody told LazyLead that the question was for @piyushsoni-wq. Gemma read the thread and worked it out; code then checked that @piyushsoni-wq is really in the thread.
+
 ## Facts from code, words from Gemma
 
 The model never counts. Counts, wait times, who was asked to review, @mentions and bot noise are computed in plain code from the GitHub API. Gemma only does what a model is good at:
@@ -56,6 +71,8 @@ Token: put it in the file named by `tokenFile` (or set `GITHUB_TOKEN`). A fine-g
 sudo cp deploy/lazylead.service deploy/lazylead.timer /etc/systemd/system/
 sudo systemctl enable --now lazylead.timer
 ```
+
+The service runs `git pull --ff-only` in `/opt/lazylead` before each brief, so merged changes go live on the next run.
 
 ## Tests
 

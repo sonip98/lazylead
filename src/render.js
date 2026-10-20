@@ -3,24 +3,33 @@ import { fmtHours } from './brief.js';
 const prLink = (p) => `[${p.repo.split('/')[1]}#${p.number}](${p.url}) ${p.title}`;
 const day = (iso) => new Date(iso).toISOString().slice(0, 10);
 
+function personLines(p) {
+  const lines = [
+    ...p.reviews.map((w) => `- Review ${prLink(w)} — ${fmtHours(w.waitingHours) === 'just now' ? 'requested just now' : `waiting ${fmtHours(w.waitingHours)}`}${w.stale ? ' ⏰' : ''}`),
+    ...p.asks.map((a) => `- Reply on ${prLink(a)}: ${a.ask}`),
+    ...p.mentions.map((m) => `- @${m.by} mentioned you on ${prLink(m)}`),
+    ...p.authoredChangesRequested.map((c) => `- Your ${prLink(c)} has changes requested by ${c.by.map((u) => `@${u}`).join(', ')}`),
+    ...p.authoredReady.map((r) => `- Your ${prLink(r)} is approved — merge it`),
+    ...p.authoredStuck.map((s) => `- Your ${prLink(s)} has no reviewer after ${fmtHours(s.ageHours)} — ask someone`),
+  ];
+  return lines.length ? lines : ['- Nothing. Go have a coffee. ☕'];
+}
+
+// A short brief for one teammate: only what waits on them.
+export function toPersonMarkdown(b, p) {
+  return [`# 🦥 Waiting on @${p.login} — ${day(b.facts.generatedAt)}`, '', ...personLines(p), ''].join('\n');
+}
+
 export function toMarkdown(b) {
   const f = b.facts;
   const out = [];
   out.push(`# 🦥 LazyLead brief — ${day(f.generatedAt)}`, '');
   out.push(`**TL;DR:** ${b.tldr.text}`, '');
+  if (b.tldr.rejected) out.push(`_Gemma's TL;DR was replaced because it used a number not in the facts: "${b.tldr.rejected}"_`, '');
   out.push(`_Read ${b.lazyMath.scanned} items so you can read ${b.lazyMath.needYou}. Ignored ${b.lazyMath.ignored} bot items._`, '');
 
   out.push('## Needs someone');
-  for (const p of b.people) {
-    const lines = [
-      ...p.reviews.map((w) => `- Review ${prLink(w)} — waiting ${fmtHours(w.waitingHours)}${w.stale ? ' ⏰' : ''}`),
-      ...p.asks.map((a) => `- Reply on ${prLink(a)}: ${a.ask}`),
-      ...p.mentions.map((m) => `- @${m.by} mentioned you on ${prLink(m)}`),
-      ...p.authoredChangesRequested.map((c) => `- Your ${prLink(c)} has changes requested by ${c.by.map((u) => `@${u}`).join(', ')}`),
-      ...p.authoredReady.map((r) => `- Your ${prLink(r)} is approved — merge it`),
-    ];
-    out.push('', `### @${p.login}`, ...(lines.length ? lines : ['- Nothing. Go have a coffee. ☕']));
-  }
+  for (const p of b.people) out.push('', `### @${p.login}`, ...personLines(p));
 
   out.push('', '## Yesterday');
   out.push(...(f.shipped.length ? f.shipped.map((p) => `- ✅ Merged ${prLink(p)} (@${p.author})`) : ['- Nothing merged.']));

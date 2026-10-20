@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeFacts, mentionsIn } from '../src/facts.js';
 import { buildBrief, numbersCheck } from '../src/brief.js';
-import { toMarkdown, toHtml } from '../src/render.js';
+import { toMarkdown, toHtml, toPersonMarkdown } from '../src/render.js';
 
 const snapshot = JSON.parse(readFileSync(new URL('./fixtures/snapshot.json', import.meta.url)));
 const team = ['lead', 'ravi', 'asha'];
@@ -58,6 +58,11 @@ test('numbersCheck rejects invented numbers', () => {
   assert.equal(numbersCheck('1 merged, 1 opened', n), true);
   assert.equal(numbersCheck('3 merged', n), false);
   assert.equal(numbersCheck('in the last 24 hours, 1 merged', n, [24]), true);
+  // Found in a real run: "@sonip98" was read as the number 98.
+  assert.equal(numbersCheck('Review by @sonip98 is overdue; 1 merged', n), true);
+  assert.equal(numbersCheck('Runs on gemma4, 1 merged', n), true);
+  assert.equal(numbersCheck('#2 is overdue', n, [], [2]), true);
+  assert.equal(numbersCheck('#99 is overdue', n, [], [2]), false);
 });
 
 test('brief: drops asks to non-participants, falls back on bad TL;DR', async () => {
@@ -73,6 +78,9 @@ test('brief: drops asks to non-participants, falls back on bad TL;DR', async () 
 
   const bad = await buildBrief(f, { llm: fakeLlm({ tldr: '7 PRs merged today!' }), team, lead: 'lead' });
   assert.equal(bad.tldr.checked, false);
+  assert.equal(bad.tldr.rejected, '7 PRs merged today!');
+  assert.match(bad.tldr.text, /1 review waiting/);
+  assert.match(toMarkdown(bad), /was replaced because it used a number not in the facts: "7 PRs merged today!"/);
   assert.match(bad.tldr.text, /^1 merged/);
 });
 
@@ -110,4 +118,29 @@ test('brief: one failing model call falls back, the rest still run', async () =>
   assert.match(b.nudges[0].message, /^Hi @lead/);
   assert.equal(b.tldr.checked, true);
   assert.match(toMarkdown(b), /1 model call\(s\) fell back/);
+});
+
+test('render: per-person brief has only that person', async () => {
+  const b = await buildBrief(computeFacts(snapshot, { team }), { llm: fakeLlm(), team, lead: 'lead' });
+  const lead = toPersonMarkdown(b, b.people.find((p) => p.login === 'lead'));
+  assert.match(lead, /Waiting on @lead/);
+  assert.match(lead, /Review \[shop#2\]/);
+  assert.doesNotMatch(lead, /footer links/);
+  assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'asha')), /Your \[shop#3\].*no reviewer after 2d/);
+  assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'ravi')), /Go have a coffee/);
+});
+
+test('fmtHours: just now, hours, days', async () => {
+  const { fmtHours } = await import('../src/brief.js');
+  assert.equal(fmtHours(0.01), 'just now');
+  assert.equal(fmtHours(0.53), '32m');
+  assert.equal(fmtHours(30), '30h');
+  assert.equal(fmtHours(72), '3d');
+});
+
+test('facts: a mention that was answered later is dropped', () => {
+  const answered = structuredClone(snapshot);
+  answered.repos[0].comments.push({ pr: 2, kind: 'comment', id: 13, user: 'lead', isBot: false, body: '3 is fine.', createdAt: '2026-10-20T16:00:00Z', url: 'u' });
+  assert.equal(computeFacts(answered, { team }).mentions.length, 0);
+  assert.equal(computeFacts(snapshot, { team }).mentions.length, 1);
 });

@@ -9,7 +9,7 @@ import { collect } from '../src/collect.js';
 import { computeFacts } from '../src/facts.js';
 import { createOllama } from '../src/llm.js';
 import { buildBrief } from '../src/brief.js';
-import { toMarkdown, toHtml } from '../src/render.js';
+import { toMarkdown, toHtml, toPersonMarkdown } from '../src/render.js';
 
 const { values: args } = parseArgs({
   options: {
@@ -54,4 +54,7 @@ writeFileSync(join(outDir, `${name}.md`), toMarkdown(brief));
 writeFileSync(join(outDir, `${name}.html`), toHtml(brief));
 writeFileSync(join(outDir, `${name}.json`), JSON.stringify(brief, null, 2));
 writeFileSync(join(outDir, 'latest.html'), toHtml(brief));
+const peopleDir = join(outDir, name);
+mkdirSync(peopleDir, { recursive: true });
+for (const p of brief.people) writeFileSync(join(peopleDir, `${p.login}.md`), toPersonMarkdown(brief, p));
 log(`done in ${(brief.llmStats.ms / 1000).toFixed(0)}s of model time → ${join(outDir, name)}.{md,html,json}`);
