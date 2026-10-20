@@ -58,6 +58,11 @@ test('numbersCheck rejects invented numbers', () => {
   assert.equal(numbersCheck('1 merged, 1 opened', n), true);
   assert.equal(numbersCheck('3 merged', n), false);
   assert.equal(numbersCheck('in the last 24 hours, 1 merged', n, [24]), true);
+  // Found in a real run: "@sonip98" was read as the number 98.
+  assert.equal(numbersCheck('Review by @sonip98 is overdue; 1 merged', n), true);
+  assert.equal(numbersCheck('Runs on gemma4, 1 merged', n), true);
+  assert.equal(numbersCheck('#2 is overdue', n, [], [2]), true);
+  assert.equal(numbersCheck('#99 is overdue', n, [], [2]), false);
 });
 
 test('brief: drops asks to non-participants, falls back on bad TL;DR', async () => {
