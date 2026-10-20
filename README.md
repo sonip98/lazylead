@@ -1,10 +1,8 @@
 # 🦥 LazyLead
 
-**Managers don't read PRs. LazyLead does, at 3 AM, with a local Gemma, and only speaks up when something is stuck.**
+**A morning brief for engineering managers, written overnight by a local Gemma. No GitHub tab needed.**
 
-Most leads don't check GitHub every day. They find out a review was waiting for three days when someone complains. LazyLead checks every night on your own machine, writes one page, and (optionally) pushes to your phone only when a review is overdue, a PR has no reviewer, or a question is still unanswered. Quiet nights stay quiet.
-
-**[See a real brief →](https://sonip98.github.io/lazylead/)**
+A manager wants to know how the team is doing, but opening GitHub and reading through PRs every morning takes time they don't have, and most days nothing is wrong. So they usually look only when something has already gone wrong. LazyLead reads the team's GitHub every night on your own machine, writes one page, and (optionally) pushes to the manager's phone only when a review is overdue, a PR has no reviewer, or a question is still unanswered. Quiet nights stay quiet.
 
 The page has:
 
