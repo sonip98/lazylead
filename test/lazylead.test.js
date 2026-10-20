@@ -97,3 +97,10 @@ test('render: per-person brief has only that person', async () => {
   assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'asha')), /Your \[shop#3\].*no reviewer after 2d/);
   assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'ravi')), /Go have a coffee/);
 });
+
+test('fmtHours: just now, hours, days', async () => {
+  const { fmtHours } = await import('../src/brief.js');
+  assert.equal(fmtHours(0.2), 'just now');
+  assert.equal(fmtHours(30), '30h');
+  assert.equal(fmtHours(72), '3d');
+});
