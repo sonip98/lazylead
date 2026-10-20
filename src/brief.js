@@ -91,10 +91,26 @@ function urgentItems(f) {
 }
 
 // Every number in the model's TL;DR must be one we gave it.
-export function numbersCheck(text, n, extra = []) {
+// Digits inside @logins or words (sonip98, gemma4) are not numbers; #refs must be real PRs.
+export function numbersCheck(text, n, extra = [], prNumbers = []) {
   const allowed = new Set([...Object.values(n), ...extra].map(String));
-  const used = text.match(/\d+/g) || [];
-  return used.every((x) => allowed.has(x));
+  const refs = new Set(prNumbers.map(String));
+  const withoutLogins = text.replace(/@[\w-]+/g, '');
+  const usedRefs = [...withoutLogins.matchAll(/#(\d+)\b/g)].map((m) => m[1]);
+  const used = withoutLogins.replace(/#\d+\b/g, '').match(/\b\d+\b/g) || [];
+  return usedRefs.every((x) => refs.has(x)) && used.every((x) => allowed.has(x));
+}
+
+// The counts as plain words, so the model does not echo JSON keys back.
+function countsInWords(n) {
+  return [
+    `${n.merged} PRs merged`,
+    `${n.opened} PRs opened`,
+    `${n.reviewsWaiting} reviews waiting, ${n.staleReviews} of them overdue`,
+    `${n.stuckPrs} PRs with no reviewer`,
+    `${n.readyToMerge} PRs approved but not merged`,
+    `${n.mentions} unanswered mentions`,
+  ].join('; ');
 }
 
 export async function writeTldr(llm, f, summaries) {
@@ -102,15 +118,16 @@ export async function writeTldr(llm, f, summaries) {
   const windowHours = Math.round((new Date(f.generatedAt) - new Date(f.windowStart)) / 3600_000);
   const out = await llm.json(
     SYSTEM,
-    `Facts for the last ${windowHours} hours:\n${JSON.stringify(n)}\n` +
+    `Counts for the last ${windowHours} hours: ${countsInWords(n)}.\n` +
       `Most urgent items, in order:\n${urgentItems(f).join('\n') || '- none'}\n` +
       `Thread summaries:\n${summaries.map((s) => `- "${s.title}": ${s.summary}`).join('\n') || '- none'}\n\n` +
       'Write a TL;DR for the tech lead: at most 2 sentences. If there are urgent items, start with the most urgent one by its title; ' +
       'if there are none, start with the most notable activity instead and do not mention urgency at all. Then the counts. ' +
-      'Use digits only from the facts above; do not compute new numbers. Return JSON {"tldr": "..."}.',
+      'Use digits only from the counts above; do not compute new numbers. Leave out counts that are zero. Return JSON {"tldr": "..."}.',
     TLDR_SCHEMA,
   );
-  const ok = numbersCheck(out.tldr, n, [windowHours]);
+  const prNumbers = [...f.shipped, ...f.opened, ...f.closedUnmerged, ...f.waiting, ...f.stuck, ...f.readyToMerge, ...f.changesRequested].map((p) => p.number);
+  const ok = numbersCheck(out.tldr, n, [windowHours], prNumbers);
   // Keep what the model wrote when it is rejected, so you can see why.
   return ok ? { text: out.tldr, checked: true } : { text: fallbackTldr(n), checked: false, rejected: out.tldr };
 }
