@@ -1,0 +1,17 @@
+{
+  "name": "lazylead",
+  "version": "0.1.0",
+  "description": "A local Gemma does your tech-lead morning rounds overnight: team PR brief, waiting-on-you lists, review nudges.",
+  "type": "module",
+  "bin": {
+    "lazylead": "bin/lazylead.js"
+  },
+  "scripts": {
+    "brief": "node bin/lazylead.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

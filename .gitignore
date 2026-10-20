@@ -1,0 +1,9 @@
+node_modules/
+briefs/
+briefs-*/
+lazylead.config.json
+fixture.config.json
+/snapshot.json
+*.token
+github-token
+.DS_Store

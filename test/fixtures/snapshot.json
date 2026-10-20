@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-10-21T03:00:00.000Z",
+  "windowStart": "2026-10-20T03:00:00.000Z",
+  "repos": [
+    {
+      "name": "acme/shop",
+      "pulls": [
+        {
+          "number": 1, "title": "Add search filter", "body": "", "author": "ravi", "authorIsBot": false, "draft": false,
+          "state": "closed", "url": "https://github.com/acme/shop/pull/1",
+          "createdAt": "2026-10-18T10:00:00Z", "updatedAt": "2026-10-20T12:00:00Z", "closedAt": "2026-10-20T12:00:00Z", "mergedAt": "2026-10-20T12:00:00Z",
+          "requestedReviewers": [], "reviews": [{ "user": "lead", "state": "APPROVED", "submittedAt": "2026-10-20T11:00:00Z" }], "reviewRequests": []
+        },
+        {
+          "number": 2, "title": "Fix checkout timeout", "body": "Retries the payment call.", "author": "ravi", "authorIsBot": false, "draft": false,
+          "state": "open", "url": "https://github.com/acme/shop/pull/2",
+          "createdAt": "2026-10-19T20:00:00Z", "updatedAt": "2026-10-20T15:00:00Z", "closedAt": null, "mergedAt": null,
+          "requestedReviewers": ["lead"], "reviews": [], "reviewRequests": [{ "reviewer": "lead", "at": "2026-10-19T21:00:00Z" }]
+        },
+        {
+          "number": 3, "title": "Refactor cart totals", "body": "", "author": "asha", "authorIsBot": false, "draft": false,
+          "state": "open", "url": "https://github.com/acme/shop/pull/3",
+          "createdAt": "2026-10-19T01:00:00Z", "updatedAt": "2026-10-19T01:00:00Z", "closedAt": null, "mergedAt": null,
+          "requestedReviewers": [], "reviews": [], "reviewRequests": []
+        },
+        {
+          "number": 4, "title": "Update footer links", "body": "", "author": "asha", "authorIsBot": false, "draft": false,
+          "state": "open", "url": "https://github.com/acme/shop/pull/4",
+          "createdAt": "2026-10-20T05:00:00Z", "updatedAt": "2026-10-20T09:00:00Z", "closedAt": null, "mergedAt": null,
+          "requestedReviewers": [], "reviews": [{ "user": "lead", "state": "APPROVED", "submittedAt": "2026-10-20T09:00:00Z" }], "reviewRequests": []
+        },
+        {
+          "number": 5, "title": "Bump lodash", "body": "", "author": "dependabot[bot]", "authorIsBot": true, "draft": false,
+          "state": "open", "url": "https://github.com/acme/shop/pull/5",
+          "createdAt": "2026-10-20T06:00:00Z", "updatedAt": "2026-10-20T06:00:00Z", "closedAt": null, "mergedAt": null,
+          "requestedReviewers": [], "reviews": [], "reviewRequests": []
+        }
+      ],
+      "comments": [
+        { "pr": 2, "kind": "comment", "id": 10, "user": "ravi", "isBot": false, "body": "Opened, retries 3 times.", "createdAt": "2026-10-19T21:05:00Z", "url": "https://github.com/acme/shop/pull/2#c10" },
+        { "pr": 2, "kind": "comment", "id": 11, "user": "ravi", "isBot": false, "body": "@lead can you confirm 3 retries is ok for the bank API? `@asha` in code is ignored", "createdAt": "2026-10-20T15:00:00Z", "url": "https://github.com/acme/shop/pull/2#c11" },
+        { "pr": 2, "kind": "comment", "id": 12, "user": "codecov[bot]", "isBot": true, "body": "Coverage 81%", "createdAt": "2026-10-20T15:01:00Z", "url": "https://github.com/acme/shop/pull/2#c12" }
+      ]
+    }
+  ]
+}

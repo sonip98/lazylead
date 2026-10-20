@@ -1,0 +1,14 @@
+{
+  "repos": ["sonip98/lazylead"],
+  "lead": "sonip98",
+  "team": ["sonip98", "piyushsoni-wq"],
+  "windowHours": 24,
+  "staleHours": 24,
+  "tokenFile": "/etc/lazylead/github-token",
+  "outDir": "./briefs",
+  "ollama": {
+    "url": "http://127.0.0.1:11434",
+    "model": "gemma4:e4b-it-qat",
+    "numCtx": 8192
+  }
+}

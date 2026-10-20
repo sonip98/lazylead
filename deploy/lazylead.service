@@ -1,0 +1,18 @@
+[Unit]
+Description=LazyLead nightly tech-lead brief
+After=network-online.target ollama.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=lazylead
+Group=lazylead
+WorkingDirectory=/opt/lazylead
+ExecStart=/usr/bin/node bin/lazylead.js --config /etc/lazylead/config.json --save-snapshot /var/lib/lazylead/snapshot.json
+Nice=10
+StateDirectory=lazylead
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lazylead
+PrivateTmp=true
