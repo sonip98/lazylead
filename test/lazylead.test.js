@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { computeFacts, mentionsIn } from '../src/facts.js';
 import { buildBrief, numbersCheck } from '../src/brief.js';
-import { toMarkdown, toHtml } from '../src/render.js';
+import { toMarkdown, toHtml, toPersonMarkdown } from '../src/render.js';
 
 const snapshot = JSON.parse(readFileSync(new URL('./fixtures/snapshot.json', import.meta.url)));
 const team = ['lead', 'ravi', 'asha'];
@@ -86,4 +86,14 @@ test('render: markdown and html', async () => {
   assert.match(html, /<a href="https:\/\/github.com\/acme\/shop\/pull\/2">shop#2<\/a>/);
   assert.match(html, /data-copy="Hey @lead/);
   assert.doesNotMatch(html, /<script>alert/);
+});
+
+test('render: per-person brief has only that person', async () => {
+  const b = await buildBrief(computeFacts(snapshot, { team }), { llm: fakeLlm(), team, lead: 'lead' });
+  const lead = toPersonMarkdown(b, b.people.find((p) => p.login === 'lead'));
+  assert.match(lead, /Waiting on @lead/);
+  assert.match(lead, /Review \[shop#2\]/);
+  assert.doesNotMatch(lead, /footer links/);
+  assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'asha')), /Your \[shop#3\].*no reviewer after 2d/);
+  assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'ravi')), /Go have a coffee/);
 });
