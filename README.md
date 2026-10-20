@@ -67,6 +67,33 @@ Useful flags:
 
 Token: put it in the file named by `tokenFile` (or set `GITHUB_TOKEN`). A fine-grained token with **Pull requests: read** and **Issues: read** is enough.
 
+## Busy repos
+
+On a big repo, add these to the config:
+
+```json
+"teamOnly": true,
+"abandonedDays": 14,
+"limits": { "threads": 25, "nudges": 10 }
+```
+
+- `teamOnly`: ignore PRs from people outside `team`, except when a teammate was asked to review them.
+- `abandonedDays`: a PR with no reviewer for longer than this is counted in one line instead of listed.
+- `limits`: at most this many threads summarized and nudges written per night (most active threads and oldest reviews first), so model time stays bounded.
+
+Lists in the brief show 10 items and then "…and N more". If GitHub has more than 500 open PRs, the brief says so instead of silently stopping.
+
+### Load test: ollama/ollama
+
+Run on the same 4-core ARM server, while it also serves three live websites:
+
+| | Before | After |
+|---|---|---|
+| Collecting 24 h of ollama/ollama (500 open PRs) | 450 s, 1,013 API calls | 60 s, 537 API calls |
+| Gemma (gemma4:e4b-it-qat, CPU only) | 29 calls, 412 s | 17 calls, 306 s |
+| PRs "with no reviewer" listed | 400 | 10 shown of 143, plus 258 abandoned in one line |
+| Other sites on the box during the model run | | p50 +5 ms, max 57 ms, 0 failed requests |
+
 ## Phone push (optional)
 
 Off by default. To get a push only when something needs attention, install the free [ntfy](https://ntfy.sh) app (open source, no account), subscribe to a topic name nobody can guess, and add to your config:

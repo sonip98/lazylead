@@ -34,7 +34,13 @@ if (args['from-snapshot']) {
   if (args['save-snapshot']) writeFileSync(args['save-snapshot'], JSON.stringify(snapshot, null, 2));
 }
 
-const facts = computeFacts(snapshot, { team: config.team ?? [], staleHours: config.staleHours ?? 24 });
+const facts = computeFacts(snapshot, {
+  team: config.team ?? [],
+  staleHours: config.staleHours ?? 24,
+  teamOnly: config.teamOnly ?? false,
+  abandonedDays: config.abandonedDays ?? 14,
+});
+for (const w of facts.warnings) log(`warning: ${w}`);
 if (args['facts-only']) {
   console.log(JSON.stringify(facts, null, 2));
   process.exit(0);
@@ -46,7 +52,7 @@ if (!(await llm.ready())) {
   log(`${config.ollama.model} is not available at ${config.ollama.url}; writing a facts-only brief`);
   llm = null;
 }
-const brief = await buildBrief(facts, { llm, team: config.team ?? [], lead: config.lead, log });
+const brief = await buildBrief(facts, { llm, team: config.team ?? [], lead: config.lead, log, limits: config.limits });
 
 const outDir = config.outDir ?? './briefs';
 mkdirSync(outDir, { recursive: true });

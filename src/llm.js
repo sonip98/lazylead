@@ -1,7 +1,7 @@
 // Minimal Ollama client. Every call asks for JSON that matches a schema,
 // so the rest of the code can treat the model like a function.
 
-export function createOllama({ url = 'http://127.0.0.1:11434', model, numCtx = 8192, fetchImpl = fetch } = {}) {
+export function createOllama({ url = 'http://127.0.0.1:11434', model, numCtx = 8192, timeoutMs = 300_000, fetchImpl = fetch } = {}) {
   const stats = { calls: 0, promptTokens: 0, outputTokens: 0, ms: 0 };
 
   async function json(system, user, schema) {
@@ -9,6 +9,8 @@ export function createOllama({ url = 'http://127.0.0.1:11434', model, numCtx = 8
     const res = await fetchImpl(`${url}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      // A stuck call falls back (see buildBrief) instead of hanging the night.
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
         model,
         stream: false,

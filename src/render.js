@@ -3,6 +3,10 @@ import { fmtHours } from './brief.js';
 const prLink = (p) => `[${p.repo.split('/')[1]}#${p.number}](${p.url}) ${p.title}`;
 const day = (iso) => new Date(iso).toISOString().slice(0, 10);
 
+const MAX_LINES = 10;
+// Long lists end with a count instead of a wall of links.
+const capped = (lines, what = 'more') => (lines.length > MAX_LINES ? [...lines.slice(0, MAX_LINES), `- …and ${lines.length - MAX_LINES} ${what}`] : lines);
+
 function personLines(p) {
   const lines = [
     ...p.reviews.map((w) => `- Review ${prLink(w)} — ${fmtHours(w.waitingHours) === 'just now' ? 'requested just now' : `waiting ${fmtHours(w.waitingHours)}`}${w.stale ? ' ⏰' : ''}`),
@@ -12,7 +16,7 @@ function personLines(p) {
     ...p.authoredReady.map((r) => `- Your ${prLink(r)} is approved — merge it`),
     ...p.authoredStuck.map((s) => `- Your ${prLink(s)} has no reviewer after ${fmtHours(s.ageHours)} — ask someone`),
   ];
-  return lines.length ? lines : ['- Nothing. Go have a coffee. ☕'];
+  return lines.length ? capped(lines) : ['- Nothing. Go have a coffee. ☕'];
 }
 
 // A short brief for one teammate: only what waits on them.
@@ -27,30 +31,37 @@ export function toMarkdown(b) {
   out.push(`**TL;DR:** ${b.tldr.text}`, '');
   if (b.tldr.rejected) out.push(`_Gemma's TL;DR was replaced because it used a number not in the facts: "${b.tldr.rejected}"_`, '');
   out.push(`_Read ${b.lazyMath.scanned} items so you can read ${b.lazyMath.needYou}. Ignored ${b.lazyMath.ignored} bot items._`, '');
+  for (const w of f.warnings || []) out.push(`> ⚠️ ${w}`, '');
 
-  out.push('## Needs someone');
-  for (const p of b.people) out.push('', `### @${p.login}`, ...personLines(p));
+  if (b.people.length) {
+    out.push('## Needs someone');
+    for (const p of b.people) out.push('', `### @${p.login}`, ...personLines(p));
+  }
 
   out.push('', '## Yesterday');
-  out.push(...(f.shipped.length ? f.shipped.map((p) => `- ✅ Merged ${prLink(p)} (@${p.author})`) : ['- Nothing merged.']));
-  out.push(...f.opened.map((p) => `- 🆕 Opened ${prLink(p)} (@${p.author})`));
-  out.push(...f.closedUnmerged.map((p) => `- ✖️ Closed without merge ${prLink(p)}`));
+  out.push(...(f.shipped.length ? capped(f.shipped.map((p) => `- ✅ Merged ${prLink(p)} (@${p.author})`), 'more merged') : ['- Nothing merged.']));
+  out.push(...capped(f.opened.map((p) => `- 🆕 Opened ${prLink(p)} (@${p.author})`), 'more opened'));
+  out.push(...capped(f.closedUnmerged.map((p) => `- ✖️ Closed without merge ${prLink(p)}`), 'more closed'));
+  if (f.skippedOutsideTeam) out.push(`- _${f.skippedOutsideTeam} PRs from outside the team not listed._`);
 
   if (b.summaries.length) {
     out.push('', '## Discussions');
     out.push(...b.summaries.map((s) => `- ${prLink(s)} — ${s.summary}`));
+    if (b.skipped?.threads) out.push(`- _${b.skipped.threads} quieter threads not summarized._`);
   }
 
-  if (f.stuck.length || f.waiting.length) {
+  if (f.stuck.length || f.waiting.length || f.abandoned) {
     out.push('', '## Stuck & review load');
-    out.push(...f.stuck.map((p) => `- 🧊 ${prLink(p)} open ${fmtHours(p.ageHours)} with no reviewer`));
+    out.push(...capped(f.stuck.map((p) => `- 🧊 ${prLink(p)} open ${fmtHours(p.ageHours)} with no reviewer`), 'more with no reviewer'));
+    if (f.abandoned) out.push(`- 🕸️ ${f.abandoned} older PRs have had no reviewer for weeks (not listed).`);
     const load = Object.entries(f.reviewLoad).sort((a, b) => b[1] - a[1]);
-    if (load.length) out.push(`- Pending reviews: ${load.map(([u, n]) => `@${u} ${n}`).join(', ')}`);
+    if (load.length) out.push(`- Pending reviews: ${load.slice(0, MAX_LINES).map(([u, n]) => `@${u} ${n}`).join(', ')}${load.length > MAX_LINES ? `, +${load.length - MAX_LINES} people` : ''}`);
   }
 
   if (b.nudges.length) {
     out.push('', '## Nudge drafts (copy, paste, done)');
     out.push(...b.nudges.map((n) => `- To @${n.reviewer} on ${prLink(n)}:\n  > ${n.message}`));
+    if (b.skipped?.nudges) out.push(`- _${b.skipped.nudges} more overdue reviews (oldest shown first)._`);
   }
 
   const s = b.llmStats;
@@ -83,6 +94,9 @@ export function toHtml(b) {
     if (line.startsWith('- ')) {
       if (!inList) body.push('<ul>'), (inList = true);
       body.push(`<li>${inline(line.slice(2))}`);
+    } else if (line.startsWith('> ')) {
+      closeList();
+      body.push(`<p class="warn">${inline(line.slice(2))}</p>`);
     } else if (line.startsWith('  > ')) {
       const text = line.slice(4);
       body.push(`<blockquote>${esc(text)}<button data-copy="${esc(text)}">Copy</button></blockquote>`);
@@ -111,6 +125,7 @@ ul{padding-left:1.2rem}li{margin:.25rem 0}
 blockquote{margin:.4rem 0 .8rem;padding:.6rem .8rem;background:var(--card);border-left:3px solid var(--accent);border-radius:6px;display:flex;gap:.8rem;justify-content:space-between;align-items:center}
 button{font:inherit;font-size:.85rem;padding:.25rem .7rem;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;cursor:pointer}
 p strong{font-size:1.05rem}
+.warn{padding:.5rem .8rem;border:1px solid #d9a441;border-radius:6px;background:var(--card)}
 </style></head><body><main>
 ${body.join('\n')}
 </main>

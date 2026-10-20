@@ -138,7 +138,10 @@ export const templateNudge = (w) =>
   `Hi @${w.reviewer}, could you take a look at #${w.number} "${w.title}" when you get a moment? It has waited ${fmtHours(w.waitingHours)}. Thanks!`;
 
 // llm may be null (model down). Any single failed call falls back too, so the facts always ship.
-export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
+// limits keep model work bounded on busy repos: most active threads, oldest overdue reviews first.
+export async function buildBrief(f, { llm, team = [], lead, log = () => {}, limits = {} }) {
+  const maxThreads = limits.threads ?? 25;
+  const maxNudges = limits.nudges ?? 10;
   let modelFailures = 0;
   const tryModel = async (label, fn, fallback) => {
     if (!llm) return fallback();
@@ -152,7 +155,8 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
   };
 
   const summaries = [];
-  for (const t of f.threads) {
+  const threads = [...f.threads].sort((a, b) => b.comments.filter((c) => c.isNew).length - a.comments.filter((c) => c.isNew).length).slice(0, maxThreads);
+  for (const t of threads) {
     log(`summarize #${t.number}`);
     const newCount = t.comments.filter((c) => c.isNew).length;
     const s = await tryModel(`summarize #${t.number}`, () => summarizeThread(llm, t), () => ({
@@ -163,7 +167,7 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
   }
 
   const nudges = [];
-  for (const w of f.waiting.filter((x) => x.stale)) {
+  for (const w of f.waiting.filter((x) => x.stale).slice(0, maxNudges)) {
     log(`nudge @${w.reviewer} on #${w.number}`);
     nudges.push({ ...w, message: await tryModel(`nudge #${w.number}`, () => draftNudge(llm, w), () => templateNudge(w)) });
   }
@@ -185,15 +189,15 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
     };
   });
 
-  const needYou = people.reduce(
-    (sum, p) => sum + p.reviews.length + p.asks.length + p.mentions.length + p.authoredChangesRequested.length + p.authoredReady.length + p.authoredStuck.length,
-    0,
-  );
+  // What needs a human: overdue reviews, PRs nobody picked up, open questions to the team.
+  const needYou =
+    f.waiting.filter((w) => w.stale).length + f.stuck.length + people.reduce((sum, p) => sum + p.asks.length + p.mentions.length, 0);
   return {
     facts: f,
     numbers: factNumbers(f),
     tldr,
     summaries,
+    skipped: { threads: f.threads.length - threads.length, nudges: Math.max(0, f.waiting.filter((x) => x.stale).length - maxNudges) },
     nudges,
     people,
     lazyMath: { scanned: f.itemsScanned, needYou, ignored: f.noise.botComments + f.noise.botPulls },

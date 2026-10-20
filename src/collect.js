@@ -21,43 +21,62 @@ function slimPull(p) {
   };
 }
 
+// Runs fn over items with at most `limit` requests in flight.
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 const prNumberFromUrl = (url) => Number(/\/(\d+)$/.exec(url || '')?.[1]);
 
-export async function collect(gh, { repos, windowHours, now = new Date() }) {
+export async function collect(gh, { repos, windowHours, now = new Date(), concurrency = 5 }) {
   const windowStart = new Date(now.getTime() - windowHours * 3600_000);
   // Comments are fetched with extra lookback so a thread has some context before the window.
   const since = new Date(windowStart.getTime() - 48 * 3600_000).toISOString();
   const snapshot = { generatedAt: now.toISOString(), windowStart: windowStart.toISOString(), repos: [] };
 
   for (const repo of repos) {
-    const open = (await gh.openPulls(repo)).map(slimPull);
+    const warnings = [];
+    const openRaw = await gh.openPulls(repo);
+    if (openRaw.truncated) warnings.push(`Only the first ${openRaw.length} open PRs of ${repo} were read.`);
+    const open = openRaw.map(slimPull);
     const closed = (await gh.recentClosedPulls(repo))
       .filter((p) => new Date(p.closed_at) >= windowStart)
       .map(slimPull);
     const pulls = [...open, ...closed];
 
-    for (const pr of pulls) {
+    await mapLimit(pulls, concurrency, async (pr) => {
       pr.reviews = (await gh.reviews(repo, pr.number)).map((r) => ({
         user: r.user?.login,
         state: r.state,
         submittedAt: r.submitted_at,
       }));
-      if (pr.state === 'open') {
-        // When was each current reviewer asked? Last review_requested event wins.
+      // When was each current reviewer asked? Only needed if someone is still asked.
+      pr.reviewRequests = [];
+      if (pr.state === 'open' && pr.requestedReviewers.length) {
         const events = await gh.issueEvents(repo, pr.number);
         pr.reviewRequests = events
           .filter((e) => e.event === 'review_requested' && e.requested_reviewer)
           .map((e) => ({ reviewer: e.requested_reviewer.login, at: e.created_at }));
-      } else {
-        pr.reviewRequests = [];
       }
-    }
+    });
 
     const prNumbers = new Set(pulls.map((p) => p.number));
-    const issueComments = (await gh.issueComments(repo, since))
+    const issueRaw = await gh.issueComments(repo, since);
+    const reviewRaw = await gh.reviewComments(repo, since);
+    if (issueRaw.truncated || reviewRaw.truncated) warnings.push(`Some comments on ${repo} were not read (more than 500 in the window).`);
+    const issueComments = issueRaw
       .filter((c) => /\/pull\/\d+/.test(c.html_url))
       .map((c) => ({ pr: prNumberFromUrl(c.issue_url), kind: 'comment', c }));
-    const reviewComments = (await gh.reviewComments(repo, since)).map((c) => ({
+    const reviewComments = reviewRaw.map((c) => ({
       pr: prNumberFromUrl(c.pull_request_url),
       kind: 'review-comment',
       c,
@@ -76,7 +95,7 @@ export async function collect(gh, { repos, windowHours, now = new Date() }) {
       }))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-    snapshot.repos.push({ name: repo, pulls, comments });
+    snapshot.repos.push({ name: repo, pulls, comments, warnings });
   }
   return snapshot;
 }
