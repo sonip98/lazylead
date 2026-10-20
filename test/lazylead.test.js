@@ -248,3 +248,14 @@ test('lazy math: never claims you read more than it did', async () => {
   const b = await buildBrief(computeFacts(s, { team }), { llm: null, team, lead: 'lead' });
   assert.ok(b.lazyMath.needYou <= b.lazyMath.scanned, `${b.lazyMath.needYou} > ${b.lazyMath.scanned}`);
 });
+
+test('thread budget: huge threads keep the newest comments and say how many were left out', async () => {
+  const { fitThread, THREAD_CHAR_BUDGET } = await import('../src/brief.js');
+  const comments = Array.from({ length: 300 }, (_, i) => ({ by: 'u', isNew: i >= 290, text: 'x'.repeat(650) + i }));
+  const { kept, omitted } = fitThread(comments);
+  assert.ok(kept.length < 300 && kept.length > 5);
+  assert.equal(kept.length + omitted, 300);
+  assert.match(kept.at(-1).text, /299$/);
+  assert.ok(kept.reduce((n, c) => n + c.text.length + 40, 0) <= THREAD_CHAR_BUDGET);
+  assert.deepEqual(fitThread(comments.slice(0, 2)).omitted, 0);
+});

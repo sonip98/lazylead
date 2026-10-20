@@ -29,13 +29,33 @@ const TLDR_SCHEMA = { type: 'object', properties: { tldr: { type: 'string' } }, 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
 export const fmtHours = (h) => (h < 2 / 60 ? 'just now' : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
+// About 4 characters per token: ~12k characters keeps a thread well inside an 8k context,
+// so Ollama never silently cuts the start of the prompt (where the instructions are).
+export const THREAD_CHAR_BUDGET = 12_000;
+
+// Newest comments first until the budget is spent; the model is told what was left out.
+export function fitThread(comments, budget = THREAD_CHAR_BUDGET) {
+  const kept = [];
+  let used = 0;
+  for (const c of [...comments].reverse()) {
+    const item = { by: c.by, new: c.isNew, text: clip(c.text, 700) };
+    const size = item.text.length + 40;
+    if (kept.length && used + size > budget) break;
+    kept.unshift(item);
+    used += size;
+  }
+  return { kept, omitted: comments.length - kept.length };
+}
+
 export async function summarizeThread(llm, t) {
+  const { kept, omitted } = fitThread(t.comments);
   const input = {
     pr: `#${t.number} ${t.title}`,
     author: t.author,
     state: t.state,
     description: clip(t.body || '', 1200),
-    comments: t.comments.map((c) => ({ by: c.by, new: c.isNew, text: clip(c.text, 700) })),
+    ...(omitted ? { olderCommentsOmitted: omitted } : {}),
+    comments: kept,
   };
   const out = await llm.json(
     SYSTEM,
