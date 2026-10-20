@@ -104,3 +104,10 @@ test('fmtHours: just now, hours, days', async () => {
   assert.equal(fmtHours(30), '30h');
   assert.equal(fmtHours(72), '3d');
 });
+
+test('facts: a mention that was answered later is dropped', () => {
+  const answered = structuredClone(snapshot);
+  answered.repos[0].comments.push({ pr: 2, kind: 'comment', id: 13, user: 'lead', isBot: false, body: '3 is fine.', createdAt: '2026-10-20T16:00:00Z', url: 'u' });
+  assert.equal(computeFacts(answered, { team }).mentions.length, 0);
+  assert.equal(computeFacts(snapshot, { team }).mentions.length, 1);
+});
