@@ -102,14 +102,16 @@ export function numbersCheck(text, n, extra = [], prNumbers = []) {
 }
 
 // The counts as plain words, so the model does not echo JSON keys back.
+const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
 function countsInWords(n) {
   return [
-    `${n.merged} PRs merged`,
-    `${n.opened} PRs opened`,
-    `${n.reviewsWaiting} reviews waiting, ${n.staleReviews} of them overdue`,
-    `${n.stuckPrs} PRs with no reviewer`,
-    `${n.readyToMerge} PRs approved but not merged`,
-    `${n.mentions} unanswered mentions`,
+    `${plural(n.merged, 'PR', 'PRs')} merged`,
+    `${plural(n.opened, 'PR', 'PRs')} opened`,
+    `${plural(n.reviewsWaiting, 'review', 'reviews')} waiting, ${n.staleReviews} of them overdue`,
+    `${plural(n.stuckPrs, 'PR', 'PRs')} with no reviewer`,
+    `${plural(n.readyToMerge, 'PR', 'PRs')} approved but not merged`,
+    `${plural(n.mentions, 'unanswered mention', 'unanswered mentions')}`,
   ].join('; ');
 }
 
