@@ -5,7 +5,7 @@ const day = (iso) => new Date(iso).toISOString().slice(0, 10);
 
 function personLines(p) {
   const lines = [
-    ...p.reviews.map((w) => `- Review ${prLink(w)} — ${w.waitingHours < 1 ? 'requested just now' : `waiting ${fmtHours(w.waitingHours)}`}${w.stale ? ' ⏰' : ''}`),
+    ...p.reviews.map((w) => `- Review ${prLink(w)} — ${fmtHours(w.waitingHours) === 'just now' ? 'requested just now' : `waiting ${fmtHours(w.waitingHours)}`}${w.stale ? ' ⏰' : ''}`),
     ...p.asks.map((a) => `- Reply on ${prLink(a)}: ${a.ask}`),
     ...p.mentions.map((m) => `- @${m.by} mentioned you on ${prLink(m)}`),
     ...p.authoredChangesRequested.map((c) => `- Your ${prLink(c)} has changes requested by ${c.by.map((u) => `@${u}`).join(', ')}`),
@@ -25,6 +25,7 @@ export function toMarkdown(b) {
   const out = [];
   out.push(`# 🦥 LazyLead brief — ${day(f.generatedAt)}`, '');
   out.push(`**TL;DR:** ${b.tldr.text}`, '');
+  if (b.tldr.rejected) out.push(`_Gemma's TL;DR was replaced because it used a number not in the facts: "${b.tldr.rejected}"_`, '');
   out.push(`_Read ${b.lazyMath.scanned} items so you can read ${b.lazyMath.needYou}. Ignored ${b.lazyMath.ignored} bot items._`, '');
 
   out.push('## Needs someone');
