@@ -92,7 +92,7 @@ Run on the same 4-core ARM server, while it also serves three live websites:
 | Collecting 24 h of ollama/ollama (500 open PRs) | 450 s, 1,013 API calls | 60 s, 537 API calls |
 | Gemma (gemma4:e4b-it-qat, CPU only) | 29 calls, 412 s | 17 calls, 306 s |
 | PRs "with no reviewer" listed | 400 | 10 shown of 143, plus 258 abandoned in one line |
-| Other sites on the box during the model run | | p50 +5 ms, max 57 ms, 0 failed requests |
+| Other sites on the box during the model run | | median +5 to 12 ms, max 57 ms, 0 failed requests |
 
 ## Phone push (optional)
 
