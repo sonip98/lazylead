@@ -5,7 +5,7 @@ const day = (iso) => new Date(iso).toISOString().slice(0, 10);
 
 function personLines(p) {
   const lines = [
-    ...p.reviews.map((w) => `- Review ${prLink(w)} — waiting ${fmtHours(w.waitingHours)}${w.stale ? ' ⏰' : ''}`),
+    ...p.reviews.map((w) => `- Review ${prLink(w)} — ${w.waitingHours < 1 ? 'requested just now' : `waiting ${fmtHours(w.waitingHours)}`}${w.stale ? ' ⏰' : ''}`),
     ...p.asks.map((a) => `- Reply on ${prLink(a)}: ${a.ask}`),
     ...p.mentions.map((m) => `- @${m.by} mentioned you on ${prLink(m)}`),
     ...p.authoredChangesRequested.map((c) => `- Your ${prLink(c)} has changes requested by ${c.by.map((u) => `@${u}`).join(', ')}`),

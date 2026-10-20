@@ -27,7 +27,7 @@ const MESSAGE_SCHEMA = { type: 'object', properties: { message: { type: 'string'
 const TLDR_SCHEMA = { type: 'object', properties: { tldr: { type: 'string' } }, required: ['tldr'] };
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
-export const fmtHours = (h) => (h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
+export const fmtHours = (h) => (h < 1 ? 'just now' : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
 export async function summarizeThread(llm, t) {
   const input = {
@@ -105,7 +105,8 @@ export async function writeTldr(llm, f, summaries) {
     `Facts for the last ${windowHours} hours:\n${JSON.stringify(n)}\n` +
       `Most urgent items, in order:\n${urgentItems(f).join('\n') || '- none'}\n` +
       `Thread summaries:\n${summaries.map((s) => `- "${s.title}": ${s.summary}`).join('\n') || '- none'}\n\n` +
-      'Write a TL;DR for the tech lead: at most 2 sentences. Start with the most urgent item by its title, then the counts. ' +
+      'Write a TL;DR for the tech lead: at most 2 sentences. If there are urgent items, start with the most urgent one by its title; ' +
+      'if there are none, start with the most notable activity instead and do not mention urgency at all. Then the counts. ' +
       'Use digits only from the facts above; do not compute new numbers. Return JSON {"tldr": "..."}.',
     TLDR_SCHEMA,
   );

@@ -93,6 +93,11 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
       for (const who of mentionsIn(c.body, team)) {
         if (who === c.user) continue;
         const pr = repo.pulls.find((p) => p.number === c.pr);
+        // Already answered: the mentioned person commented or reviewed on this PR afterwards.
+        const answered =
+          repo.comments.some((r) => r.pr === c.pr && r.user === who && r.createdAt > c.createdAt) ||
+          (pr?.reviews || []).some((r) => r.user === who && r.submittedAt > c.createdAt);
+        if (answered) continue;
         f.mentions.push({ repo: repo.name, number: c.pr, title: pr?.title, who, by: c.user, at: c.createdAt, url: c.url, excerpt: c.body.slice(0, 200) });
       }
       activePrs.add(c.pr);
