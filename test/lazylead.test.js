@@ -161,7 +161,7 @@ test('notify: only exceptions, quiet when all clear', async () => {
   assert.equal(calls[0].body.topic, 't');
   assert.equal(calls[0].body.title, 'LazyLead: 3 things need attention');
   assert.equal(calls[0].body.click, 'https://github.com/acme/shop/pull/2');
-  assert.equal(calls[0].body.actions.length, 3);
+  assert.deepEqual(calls[0].body.actions.map((a) => a.label), ['Review shop#2', 'Open shop#3', 'Reply shop#2']);
 
   const quiet = structuredClone(b);
   quiet.facts.waiting = [];
