@@ -144,3 +144,30 @@ test('facts: a mention that was answered later is dropped', () => {
   assert.equal(computeFacts(answered, { team }).mentions.length, 0);
   assert.equal(computeFacts(snapshot, { team }).mentions.length, 1);
 });
+
+test('notify: only exceptions, quiet when all clear', async () => {
+  const { attentionItems, sendNtfy } = await import('../src/notify.js');
+  const b = await buildBrief(computeFacts(snapshot, { team }), { llm: fakeLlm(), team, lead: 'lead' });
+  const items = attentionItems(b);
+  // overdue review of #2, #3 with no reviewer, the ask to lead on #2
+  assert.equal(items.length, 3);
+  assert.match(items[0].text, /@lead: review shop#2 "Fix checkout timeout" overdue \(30h\)/);
+
+  const calls = [];
+  const fetchImpl = async (url, opts) => (calls.push({ url, body: JSON.parse(opts.body) }), { ok: true });
+  const r = await sendNtfy(b, { topic: 't', url: 'https://ntfy.example/' }, { fetchImpl });
+  assert.deepEqual(r, { sent: true, items: 3 });
+  assert.equal(calls[0].url, 'https://ntfy.example');
+  assert.equal(calls[0].body.topic, 't');
+  assert.equal(calls[0].body.title, 'LazyLead: 3 things need attention');
+  assert.equal(calls[0].body.click, 'https://github.com/acme/shop/pull/2');
+  assert.deepEqual(calls[0].body.actions.map((a) => a.label), ['Review shop#2', 'Open shop#3', 'Reply shop#2']);
+
+  const quiet = structuredClone(b);
+  quiet.facts.waiting = [];
+  quiet.facts.stuck = [];
+  quiet.people = quiet.people.map((p) => ({ ...p, asks: [], mentions: [] }));
+  calls.length = 0;
+  assert.deepEqual(await sendNtfy(quiet, { topic: 't' }, { fetchImpl }), { sent: false, items: 0 });
+  assert.equal(calls.length, 0);
+});

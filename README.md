@@ -1,8 +1,10 @@
 # 🦥 LazyLead
 
-**A local Gemma does your tech-lead morning rounds while you sleep.**
+**Managers don't read PRs. LazyLead does, at 3 AM, with a local Gemma, and only speaks up when something is stuck.**
 
-Every morning a tech lead opens GitHub and does the same rounds: what merged, who is waiting on whom, which PR is stuck, who asked me something. LazyLead does those rounds at 3 AM on your own machine and leaves one page:
+Most leads don't check GitHub every day. They find out a review was waiting for three days when someone complains. LazyLead checks every night on your own machine, writes one page, and (optionally) pushes to your phone only when a review is overdue, a PR has no reviewer, or a question is still unanswered. Quiet nights stay quiet.
+
+The page has:
 
 - **TL;DR** – the most urgent thing first, then the counts
 - **Needs someone** – per person: reviews waiting on you, questions asked of you, your PRs that are approved or need changes
@@ -62,6 +64,16 @@ Useful flags:
 - `--facts-only` prints the computed facts without calling the model
 
 Token: put it in the file named by `tokenFile` (or set `GITHUB_TOKEN`). A fine-grained token with **Pull requests: read** and **Issues: read** is enough.
+
+## Phone push (optional)
+
+Off by default. To get a push only when something needs attention, install the free [ntfy](https://ntfy.sh) app (open source, no account), subscribe to a topic name nobody can guess, and add to your config:
+
+```json
+"notify": { "ntfy": { "url": "https://ntfy.sh", "topic": "lazylead-your-unguessable-topic" } }
+```
+
+What gets sent: the TL;DR plus up to five lines (overdue reviews, PRs with no reviewer, unanswered questions), with buttons that open the PRs. Nothing is sent on an all-clear night. The text goes through the ntfy server, so for private repos either self-host ntfy (one binary) or use a token-protected topic (`"token": "..."`).
 
 ## Nightly on a server
 

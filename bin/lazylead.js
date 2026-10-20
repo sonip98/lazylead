@@ -10,6 +10,7 @@ import { computeFacts } from '../src/facts.js';
 import { createOllama } from '../src/llm.js';
 import { buildBrief } from '../src/brief.js';
 import { toMarkdown, toHtml, toPersonMarkdown } from '../src/render.js';
+import { sendNtfy } from '../src/notify.js';
 
 const { values: args } = parseArgs({
   options: {
@@ -58,3 +59,13 @@ const peopleDir = join(outDir, name);
 mkdirSync(peopleDir, { recursive: true });
 for (const p of brief.people) writeFileSync(join(peopleDir, `${p.login}.md`), toPersonMarkdown(brief, p));
 log(`done in ${(brief.llmStats.ms / 1000).toFixed(0)}s of model time → ${join(outDir, name)}.{md,html,json}`);
+
+if (config.notify?.ntfy) {
+  try {
+    const r = await sendNtfy(brief, config.notify.ntfy);
+    log(r.sent ? `ntfy: sent ${r.items} item(s)` : 'ntfy: all clear, nothing sent');
+  } catch (err) {
+    // A failed push must not lose the brief; it is already written.
+    log(`ntfy failed: ${err.message}`);
+  }
+}
