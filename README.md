@@ -19,8 +19,8 @@ From the first real run on this repo:
 
 ```
 ### @sonip98
-- Review lazylead#1 Per-person briefs — waiting 0h
-- Review lazylead#2 Facts-only brief when the model is down — waiting 0h
+- Review lazylead#1 Per-person briefs — requested just now
+- Review lazylead#2 Facts-only brief when the model is down — requested just now
 
 ### @piyushsoni-wq
 - Reply on lazylead#1 Per-person briefs: Should the per-person file list the author's own stuck PRs?
