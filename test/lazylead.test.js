@@ -73,6 +73,9 @@ test('brief: drops asks to non-participants, falls back on bad TL;DR', async () 
 
   const bad = await buildBrief(f, { llm: fakeLlm({ tldr: '7 PRs merged today!' }), team, lead: 'lead' });
   assert.equal(bad.tldr.checked, false);
+  assert.equal(bad.tldr.rejected, '7 PRs merged today!');
+  assert.match(bad.tldr.text, /1 review waiting/);
+  assert.match(toMarkdown(bad), /was replaced because it used a number not in the facts: "7 PRs merged today!"/);
   assert.match(bad.tldr.text, /^1 merged/);
 });
 
@@ -100,7 +103,8 @@ test('render: per-person brief has only that person', async () => {
 
 test('fmtHours: just now, hours, days', async () => {
   const { fmtHours } = await import('../src/brief.js');
-  assert.equal(fmtHours(0.2), 'just now');
+  assert.equal(fmtHours(0.01), 'just now');
+  assert.equal(fmtHours(0.53), '32m');
   assert.equal(fmtHours(30), '30h');
   assert.equal(fmtHours(72), '3d');
 });

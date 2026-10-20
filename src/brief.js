@@ -27,7 +27,7 @@ const MESSAGE_SCHEMA = { type: 'object', properties: { message: { type: 'string'
 const TLDR_SCHEMA = { type: 'object', properties: { tldr: { type: 'string' } }, required: ['tldr'] };
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n)}…` : s);
-export const fmtHours = (h) => (h < 1 ? 'just now' : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
+export const fmtHours = (h) => (h < 2 / 60 ? 'just now' : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
 export async function summarizeThread(llm, t) {
   const input = {
@@ -74,7 +74,7 @@ export function factNumbers(f) {
 }
 
 export function fallbackTldr(n) {
-  const parts = [`${n.merged} merged`, `${n.opened} opened`, `${n.reviewsWaiting} reviews waiting (${n.staleReviews} stale)`];
+  const parts = [`${n.merged} merged`, `${n.opened} opened`, `${n.reviewsWaiting} ${n.reviewsWaiting === 1 ? 'review' : 'reviews'} waiting (${n.staleReviews} stale)`];
   if (n.stuckPrs) parts.push(`${n.stuckPrs} stuck without a reviewer`);
   if (n.readyToMerge) parts.push(`${n.readyToMerge} approved and ready to merge`);
   return `${parts.join(', ')}.`;
@@ -111,7 +111,8 @@ export async function writeTldr(llm, f, summaries) {
     TLDR_SCHEMA,
   );
   const ok = numbersCheck(out.tldr, n, [windowHours]);
-  return { text: ok ? out.tldr : fallbackTldr(n), checked: ok };
+  // Keep what the model wrote when it is rejected, so you can see why.
+  return ok ? { text: out.tldr, checked: true } : { text: fallbackTldr(n), checked: false, rejected: out.tldr };
 }
 
 export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
