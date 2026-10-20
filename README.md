@@ -72,6 +72,8 @@ sudo cp deploy/lazylead.service deploy/lazylead.timer /etc/systemd/system/
 sudo systemctl enable --now lazylead.timer
 ```
 
+The service runs `git pull --ff-only` in `/opt/lazylead` before each brief, so merged changes go live on the next run.
+
 ## Tests
 
 ```bash

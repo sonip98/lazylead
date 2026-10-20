@@ -8,6 +8,9 @@ Type=oneshot
 User=lazylead
 Group=lazylead
 WorkingDirectory=/opt/lazylead
+# '+' runs this one step as root, outside the sandbox below, so it can update /opt/lazylead.
+# A failed pull (no network, local edits) does not stop the brief: '-' ignores the exit code.
+ExecStartPre=-+/usr/bin/git -C /opt/lazylead pull --ff-only -q
 ExecStart=/usr/bin/node bin/lazylead.js --config /etc/lazylead/config.json --save-snapshot /var/lib/lazylead/snapshot.json
 Nice=10
 StateDirectory=lazylead
