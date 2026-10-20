@@ -30,5 +30,17 @@ export function createOllama({ url = 'http://127.0.0.1:11434', model, numCtx = 8
     return JSON.parse(data.message.content);
   }
 
-  return { model, json, stats };
+  // True when Ollama answers and has the model pulled.
+  async function ready() {
+    try {
+      const res = await fetchImpl(`${url}/api/tags`);
+      if (!res.ok) return false;
+      const { models = [] } = await res.json();
+      return models.some((m) => m.name === model || m.model === model);
+    } catch {
+      return false;
+    }
+  }
+
+  return { model, json, ready, stats };
 }

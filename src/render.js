@@ -54,7 +54,13 @@ export function toMarkdown(b) {
   }
 
   const s = b.llmStats;
-  out.push('', '---', `_${b.model} on local Ollama · ${s.calls} calls · ${s.promptTokens + s.outputTokens} tokens · ${(s.ms / 1000).toFixed(0)}s · $0 · TL;DR numbers ${b.tldr.checked ? 'checked ✓' : 'replaced with facts'}_`);
+  out.push('', '---');
+  if (!b.model) out.push('_Model unavailable: facts-only brief, nudges from a template._');
+  else
+    out.push(
+      `_${b.model} on local Ollama · ${s.calls} calls · ${s.promptTokens + s.outputTokens} tokens · ${(s.ms / 1000).toFixed(0)}s · $0 · TL;DR numbers ${b.tldr.checked ? 'checked ✓' : 'replaced with facts'}` +
+        `${b.modelFailures ? ` · ${b.modelFailures} model call(s) fell back` : ''}_`,
+    );
   return out.join('\n') + '\n';
 }
 

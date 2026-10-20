@@ -96,6 +96,30 @@ test('render: markdown and html', async () => {
   assert.doesNotMatch(html, /<script>alert/);
 });
 
+test('brief: model down still ships the facts', async () => {
+  const f = computeFacts(snapshot, { team });
+  const b = await buildBrief(f, { llm: null, team, lead: 'lead' });
+  assert.equal(b.model, null);
+  assert.match(b.tldr.text, /^1 merged/);
+  assert.match(b.nudges[0].message, /^Hi @lead, could you take a look at #2/);
+  assert.equal(b.summaries[0].summary, '1 new comment.');
+  assert.match(toMarkdown(b), /Model unavailable/);
+});
+
+test('brief: one failing model call falls back, the rest still run', async () => {
+  const llm = fakeLlm();
+  const real = llm.json.bind(llm);
+  llm.json = async (system, user, schema) => {
+    if (schema.required.includes('message')) throw new Error('timeout');
+    return real(system, user, schema);
+  };
+  const b = await buildBrief(computeFacts(snapshot, { team }), { llm, team, lead: 'lead' });
+  assert.equal(b.modelFailures, 1);
+  assert.match(b.nudges[0].message, /^Hi @lead/);
+  assert.equal(b.tldr.checked, true);
+  assert.match(toMarkdown(b), /1 model call\(s\) fell back/);
+});
+
 test('render: per-person brief has only that person', async () => {
   const b = await buildBrief(computeFacts(snapshot, { team }), { llm: fakeLlm(), team, lead: 'lead' });
   const lead = toPersonMarkdown(b, b.people.find((p) => p.login === 'lead'));

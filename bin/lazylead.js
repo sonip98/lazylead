@@ -40,7 +40,11 @@ if (args['facts-only']) {
 }
 
 log(`${facts.threads.length} threads, ${facts.waiting.length} pending reviews; asking ${config.ollama.model}`);
-const llm = createOllama(config.ollama);
+let llm = createOllama(config.ollama);
+if (!(await llm.ready())) {
+  log(`${config.ollama.model} is not available at ${config.ollama.url}; writing a facts-only brief`);
+  llm = null;
+}
 const brief = await buildBrief(facts, { llm, team: config.team ?? [], lead: config.lead, log });
 
 const outDir = config.outDir ?? './briefs';
