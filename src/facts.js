@@ -24,7 +24,9 @@ function decisions(pr) {
   return latest;
 }
 
-export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
+// teamOnly: ignore PRs authored outside the team (big open-source repos).
+// abandonedDays: a PR with no reviewer for longer than this is counted, not listed.
+export function computeFacts(snapshot, { team = [], staleHours = 24, teamOnly = false, abandonedDays = 14 } = {}) {
   const now = snapshot.generatedAt;
   const windowStart = snapshot.windowStart;
   const inWindow = (t) => t && t >= windowStart;
@@ -37,6 +39,9 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
     opened: [],
     waiting: [],
     stuck: [],
+    abandoned: 0,
+    skippedOutsideTeam: 0,
+    warnings: [],
     readyToMerge: [],
     changesRequested: [],
     mentions: [],
@@ -46,29 +51,41 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
     itemsScanned: 0,
   };
 
+  const inTeam = new Set(team);
   for (const repo of snapshot.repos) {
+    f.warnings.push(...(repo.warnings || []));
+    const addWaiting = (pr, reviewers) => {
+      for (const reviewer of reviewers) {
+        const asked = pr.reviewRequests.filter((r) => r.reviewer === reviewer).at(-1)?.at || pr.createdAt;
+        const waitingHours = hoursBetween(asked, now);
+        f.waiting.push({ ...ref(pr), reviewer, waitingHours, stale: waitingHours >= staleHours });
+        f.reviewLoad[reviewer] = (f.reviewLoad[reviewer] || 0) + 1;
+      }
+    };
     const ref = (pr) => ({ repo: repo.name, number: pr.number, title: pr.title, author: pr.author, url: pr.url });
 
     for (const pr of repo.pulls) {
+      f.itemsScanned++; // every PR looked at counts, not only the day's activity
       if (pr.authorIsBot) {
         if (inWindow(pr.createdAt) || inWindow(pr.closedAt)) f.noise.botPulls++;
+        continue;
+      }
+      const outside = teamOnly && inTeam.size && !inTeam.has(pr.author);
+      if (outside) {
+        f.skippedOutsideTeam++;
+        // Outside PRs only matter when a teammate was asked to review them.
+        if (pr.state === 'open' && !pr.draft) addWaiting(pr, pr.requestedReviewers.filter((r) => inTeam.has(r)));
         continue;
       }
       if (inWindow(pr.mergedAt)) f.shipped.push(ref(pr));
       else if (inWindow(pr.closedAt)) f.closedUnmerged.push(ref(pr));
       if (pr.state === 'open' && inWindow(pr.createdAt)) f.opened.push(ref(pr));
       f.itemsScanned += pr.reviews.filter((r) => inWindow(r.submittedAt)).length;
-      if (inWindow(pr.createdAt) || inWindow(pr.closedAt)) f.itemsScanned++;
 
       if (pr.state !== 'open' || pr.draft) continue;
       const ageHours = hoursBetween(pr.createdAt, now);
 
-      for (const reviewer of pr.requestedReviewers) {
-        const asked = pr.reviewRequests.filter((r) => r.reviewer === reviewer).at(-1)?.at || pr.createdAt;
-        const waitingHours = hoursBetween(asked, now);
-        f.waiting.push({ ...ref(pr), reviewer, waitingHours, stale: waitingHours >= staleHours });
-        f.reviewLoad[reviewer] = (f.reviewLoad[reviewer] || 0) + 1;
-      }
+      addWaiting(pr, pr.requestedReviewers);
 
       const d = decisions(pr);
       const states = [...d.values()];
@@ -77,7 +94,8 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
       } else if (states.includes('APPROVED') && pr.requestedReviewers.length === 0) {
         f.readyToMerge.push({ ...ref(pr), ageHours });
       } else if (pr.requestedReviewers.length === 0 && d.size === 0 && ageHours >= staleHours) {
-        f.stuck.push({ ...ref(pr), ageHours });
+        if (ageHours >= abandonedDays * 24) f.abandoned++;
+        else f.stuck.push({ ...ref(pr), ageHours });
       }
     }
 
@@ -105,6 +123,7 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
     for (const number of activePrs) {
       const pr = repo.pulls.find((p) => p.number === number);
       if (!pr || pr.authorIsBot) continue;
+      if (teamOnly && inTeam.size && !inTeam.has(pr.author)) continue;
       const human = repo.comments.filter((c) => c.pr === number && !c.isBot);
       const firstNew = human.findIndex((c) => inWindow(c.createdAt));
       f.threads.push({
@@ -119,5 +138,6 @@ export function computeFacts(snapshot, { team = [], staleHours = 24 } = {}) {
   }
 
   f.waiting.sort((a, b) => b.waitingHours - a.waitingHours);
+  f.stuck.sort((a, b) => b.ageHours - a.ageHours);
   return f;
 }

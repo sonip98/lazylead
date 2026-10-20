@@ -171,3 +171,80 @@ test('notify: only exceptions, quiet when all clear', async () => {
   assert.deepEqual(await sendNtfy(quiet, { topic: 't' }, { fetchImpl }), { sent: false, items: 0 });
   assert.equal(calls.length, 0);
 });
+
+test('scale: abandoned PRs are counted, not listed', () => {
+  const s = structuredClone(snapshot);
+  s.repos[0].pulls[2].createdAt = '2026-09-01T00:00:00Z'; // #3, weeks without a reviewer
+  const f = computeFacts(s, { team, abandonedDays: 14 });
+  assert.equal(f.stuck.length, 0);
+  assert.equal(f.abandoned, 1);
+});
+
+test('scale: teamOnly skips outside PRs but keeps review requests to teammates', () => {
+  const s = structuredClone(snapshot);
+  s.repos[0].pulls[1].author = 'stranger'; // #2, review requested from lead
+  s.repos[0].pulls[2].author = 'stranger'; // #3, stuck
+  const f = computeFacts(s, { team, teamOnly: true });
+  assert.equal(f.skippedOutsideTeam, 2);
+  assert.deepEqual(f.stuck, []);
+  assert.deepEqual(f.waiting.map((w) => [w.number, w.reviewer]), [[2, 'lead']]);
+  assert.equal(f.threads.length, 0);
+});
+
+test('scale: long lists are capped, warnings shown', async () => {
+  const s = structuredClone(snapshot);
+  const base = s.repos[0].pulls[2];
+  for (let i = 0; i < 25; i++) s.repos[0].pulls.push({ ...structuredClone(base), number: 100 + i, title: `Old thing ${i}` });
+  s.repos[0].warnings = ['Only the first 500 open PRs of acme/shop were read.'];
+  const f = computeFacts(s, { team });
+  assert.equal(f.stuck.length, 26);
+  const b = await buildBrief(f, { llm: null, team, lead: 'lead' });
+  const md = toMarkdown(b);
+  assert.equal((md.match(/🧊/g) || []).length, 10);
+  assert.match(md, /…and 16 more with no reviewer/);
+  assert.match(md, /⚠️ Only the first 500 open PRs/);
+  assert.match(toHtml(b), /<p class="warn">⚠️ Only the first 500/);
+});
+
+test('scale: model work is bounded', async () => {
+  const s = structuredClone(snapshot);
+  const pr2 = s.repos[0].pulls[1];
+  for (let i = 0; i < 15; i++) s.repos[0].pulls.push({ ...structuredClone(pr2), number: 200 + i });
+  const llm = fakeLlm();
+  const b = await buildBrief(computeFacts(s, { team }), { llm, team, lead: 'lead', limits: { nudges: 4, threads: 25 } });
+  assert.equal(b.nudges.length, 4);
+  assert.equal(b.skipped.nudges, 12);
+  assert.match(toMarkdown(b), /12 more overdue reviews/);
+});
+
+test('collect: events only for PRs with requested reviewers, truncation warned, bounded concurrency', async () => {
+  const { collect } = await import('../src/collect.js');
+  const pull = (n, reviewers) => ({ number: n, title: `t${n}`, body: '', user: { login: 'dev', type: 'User' }, draft: false, state: 'open', html_url: `https://x/pull/${n}`, created_at: '2026-10-20T00:00:00Z', updated_at: '2026-10-20T00:00:00Z', closed_at: null, merged_at: null, requested_reviewers: reviewers.map((login) => ({ login })) });
+  const open = Array.from({ length: 12 }, (_, i) => pull(i + 1, i === 0 ? ['lead'] : []));
+  open.truncated = true;
+  let inFlight = 0, maxInFlight = 0;
+  const calls = { events: 0, reviews: 0 };
+  const slow = async (v) => { inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); await new Promise((r) => setTimeout(r, 5)); inFlight--; return v; };
+  const gh = {
+    openPulls: async () => open,
+    recentClosedPulls: async () => [],
+    reviews: async () => (calls.reviews++, slow([])),
+    issueEvents: async () => (calls.events++, slow([{ event: 'review_requested', requested_reviewer: { login: 'lead' }, created_at: '2026-10-20T01:00:00Z' }])),
+    issueComments: async () => [],
+    reviewComments: async () => [],
+  };
+  const snap = await collect(gh, { repos: ['acme/big'], windowHours: 24, now: new Date('2026-10-21T00:00:00Z'), concurrency: 3 });
+  assert.equal(calls.reviews, 12);
+  assert.equal(calls.events, 1);
+  assert.ok(maxInFlight <= 3 && maxInFlight > 1);
+  assert.deepEqual(snap.repos[0].warnings, ['Only the first 12 open PRs of acme/big were read.']);
+  assert.equal(snap.repos[0].pulls[0].reviewRequests[0].reviewer, 'lead');
+});
+
+test('lazy math: never claims you read more than it did', async () => {
+  const s = structuredClone(snapshot);
+  const base = s.repos[0].pulls[2];
+  for (let i = 0; i < 25; i++) s.repos[0].pulls.push({ ...structuredClone(base), number: 300 + i });
+  const b = await buildBrief(computeFacts(s, { team }), { llm: null, team, lead: 'lead' });
+  assert.ok(b.lazyMath.needYou <= b.lazyMath.scanned, `${b.lazyMath.needYou} > ${b.lazyMath.scanned}`);
+});

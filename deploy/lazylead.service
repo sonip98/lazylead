@@ -13,6 +13,8 @@ WorkingDirectory=/opt/lazylead
 ExecStartPre=-+/usr/bin/git -C /opt/lazylead pull --ff-only -q
 ExecStart=/usr/bin/node bin/lazylead.js --config /etc/lazylead/config.json --save-snapshot /var/lib/lazylead/snapshot.json
 Nice=10
+# Never let a hung run block the next night.
+TimeoutStartSec=2h
 StateDirectory=lazylead
 NoNewPrivileges=true
 ProtectSystem=strict

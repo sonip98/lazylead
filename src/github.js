@@ -1,6 +1,6 @@
 // Read-only GitHub REST client. LazyLead never writes to GitHub.
 const API = 'https://api.github.com';
-const MAX_PAGES = 5;
+const MAX_PAGES = 5; // 500 items per list
 
 export function createGitHub(token, { fetchImpl = fetch } = {}) {
   async function request(url) {
@@ -29,6 +29,8 @@ export function createGitHub(token, { fetchImpl = fetch } = {}) {
       const next = /<([^>]+)>;\s*rel="next"/.exec(res.headers.get('link') || '');
       url = next ? next[1] : null;
     }
+    // Caller can warn instead of silently losing data.
+    if (url) items.truncated = true;
     return items;
   }
 
