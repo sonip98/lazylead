@@ -10,6 +10,7 @@ function personLines(p) {
     ...p.mentions.map((m) => `- @${m.by} mentioned you on ${prLink(m)}`),
     ...p.authoredChangesRequested.map((c) => `- Your ${prLink(c)} has changes requested by ${c.by.map((u) => `@${u}`).join(', ')}`),
     ...p.authoredReady.map((r) => `- Your ${prLink(r)} is approved — merge it`),
+    ...p.authoredStuck.map((s) => `- Your ${prLink(s)} has no reviewer after ${fmtHours(s.ageHours)} — ask someone`),
   ];
   return lines.length ? lines : ['- Nothing. Go have a coffee. ☕'];
 }

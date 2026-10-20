@@ -139,11 +139,12 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
       mentions: f.mentions.filter((m) => m.who === login && !asks.some((a) => a.repo === m.repo && a.number === m.number)),
       authoredChangesRequested: f.changesRequested.filter((p) => p.author === login),
       authoredReady: f.readyToMerge.filter((p) => p.author === login),
+      authoredStuck: f.stuck.filter((p) => p.author === login),
     };
   });
 
   const needYou = people.reduce(
-    (sum, p) => sum + p.reviews.length + p.asks.length + p.mentions.length + p.authoredChangesRequested.length + p.authoredReady.length,
+    (sum, p) => sum + p.reviews.length + p.asks.length + p.mentions.length + p.authoredChangesRequested.length + p.authoredReady.length + p.authoredStuck.length,
     0,
   );
   return {

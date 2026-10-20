@@ -94,5 +94,6 @@ test('render: per-person brief has only that person', async () => {
   assert.match(lead, /Waiting on @lead/);
   assert.match(lead, /Review \[shop#2\]/);
   assert.doesNotMatch(lead, /footer links/);
+  assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'asha')), /Your \[shop#3\].*no reviewer after 2d/);
   assert.match(toPersonMarkdown(b, b.people.find((p) => p.login === 'ravi')), /Go have a coffee/);
 });
