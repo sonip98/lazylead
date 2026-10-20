@@ -4,6 +4,8 @@
 
 Most leads don't check GitHub every day. They find out a review was waiting for three days when someone complains. LazyLead checks every night on your own machine, writes one page, and (optionally) pushes to your phone only when a review is overdue, a PR has no reviewer, or a question is still unanswered. Quiet nights stay quiet.
 
+**[See a real brief →](https://sonip98.github.io/lazylead/)**
+
 The page has:
 
 - **TL;DR** – the most urgent thing first, then the counts
