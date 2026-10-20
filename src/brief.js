@@ -113,21 +113,42 @@ export async function writeTldr(llm, f, summaries) {
   return { text: ok ? out.tldr : fallbackTldr(n), checked: ok };
 }
 
+export const templateNudge = (w) =>
+  `Hi @${w.reviewer}, could you take a look at #${w.number} "${w.title}" when you get a moment? It has waited ${fmtHours(w.waitingHours)}. Thanks!`;
+
+// llm may be null (model down). Any single failed call falls back too, so the facts always ship.
 export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
+  let modelFailures = 0;
+  const tryModel = async (label, fn, fallback) => {
+    if (!llm) return fallback();
+    try {
+      return await fn();
+    } catch (err) {
+      modelFailures++;
+      log(`${label} failed, using fallback: ${err.message}`);
+      return fallback();
+    }
+  };
+
   const summaries = [];
   for (const t of f.threads) {
     log(`summarize #${t.number}`);
-    summaries.push({ repo: t.repo, number: t.number, title: t.title, url: t.url, ...(await summarizeThread(llm, t)) });
+    const newCount = t.comments.filter((c) => c.isNew).length;
+    const s = await tryModel(`summarize #${t.number}`, () => summarizeThread(llm, t), () => ({
+      summary: `${newCount} new comment${newCount === 1 ? '' : 's'}.`,
+      asks: [],
+    }));
+    summaries.push({ repo: t.repo, number: t.number, title: t.title, url: t.url, ...s });
   }
 
   const nudges = [];
   for (const w of f.waiting.filter((x) => x.stale)) {
     log(`nudge @${w.reviewer} on #${w.number}`);
-    nudges.push({ ...w, message: await draftNudge(llm, w) });
+    nudges.push({ ...w, message: await tryModel(`nudge #${w.number}`, () => draftNudge(llm, w), () => templateNudge(w)) });
   }
 
   log('tldr');
-  const tldr = await writeTldr(llm, f, summaries);
+  const tldr = await tryModel('tldr', () => writeTldr(llm, f, summaries), () => ({ text: fallbackTldr(factNumbers(f)), checked: false }));
 
   const people = [...new Set([lead, ...team].filter(Boolean))].map((login) => {
     const asks = summaries.flatMap((s) => s.asks.filter((a) => a.to === login).map((a) => ({ ...a, repo: s.repo, number: s.number, title: s.title, url: s.url })));
@@ -154,7 +175,8 @@ export async function buildBrief(f, { llm, team = [], lead, log = () => {} }) {
     nudges,
     people,
     lazyMath: { scanned: f.itemsScanned, needYou, ignored: f.noise.botComments + f.noise.botPulls },
-    model: llm.model,
-    llmStats: { ...llm.stats },
+    model: llm ? llm.model : null,
+    modelFailures,
+    llmStats: llm ? { ...llm.stats } : { calls: 0, promptTokens: 0, outputTokens: 0, ms: 0 },
   };
 }
